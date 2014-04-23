@@ -1,4 +1,4 @@
-SQLQueries
+SQLScripts
 ==========
 
 Useful SQL Queries collected
