@@ -17,7 +17,7 @@ DECLARE	@s_sqlstr varchar(4000),
 	@n_loopNum int,
 	@s_currString varchar(256)
 
-SET	@s_stringList = 'someColumnName' --Comma delimited list of strings to test
+SET	@s_stringList = 'gdshop_registryPartner' --Comma delimited list of strings to test
 
 INSERT	@t_stringList
 (	stringValue
@@ -56,9 +56,3 @@ ORDER BY objectDB + '..' + objectName
 DROP TABLE #holdit
 SET NOCOUNT OFF
 GO
-
-
-
-
-
-

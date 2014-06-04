@@ -13,3 +13,4 @@ FROM	sys.dm_db_missing_index_group_stats a WITH ( NOLOCK )
 	JOIN sys.dm_db_missing_index_details c WITH ( NOLOCK ) ON b.index_handle = c.index_handle
 WHERE	c.database_id = DB_ID()
 ORDER BY indexAdvantage DESC;
+
