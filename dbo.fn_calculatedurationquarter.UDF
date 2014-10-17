@@ -1,0 +1,59 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE FUNCTION dbo.fn_calculatedurationquarter
+(	
+	@d_currentDate datetime,
+	@d_expirationDate datetime
+)
+RETURNS decimal(18,3)
+AS
+BEGIN
+	DECLARE	@n_daysInCurrQuarter int,
+		@n_activeDaysInCurrQuarter int,
+		@n_daysInNextYear int,
+		@n_daysToUse int,
+		@n_monthAdjustment int,
+		@n_monthAdjustment2 int,
+		@d_baseCurrDate datetime,
+		@d_baseExpDate datetime,
+		@d_nextExpDate datetime,
+		@n_duration decimal(18,3),
+		@n_fullQuarters int,
+		@n_fractionalQuarter decimal(18,3),
+		@n_loopDirection int,
+		@n_adjustmentDirection int
+	
+	SET	@d_currentDate = CAST(CONVERT(varchar(10), @d_currentDate, 101) as datetime)
+	SET	@d_expirationDate = CAST(CONVERT(varchar(10), @d_expirationDate, 101) as datetime)
+
+	IF @d_currentDate = @d_expirationDate
+	BEGIN
+		RETURN (0)
+	END
+
+	SET	@n_adjustmentDirection = SIGN(DATEDIFF(dd, @d_currentDate, @d_expirationDate))
+	SET	@n_monthAdjustment =	CASE
+					WHEN	(	@d_currentDate < @d_expirationDate
+						AND	DATEPART(dd, @d_currentDate) > DATEPART(dd, @d_expirationDate)
+						)
+					OR	(	@d_currentDate > @d_expirationDate
+						AND	DATEPART(dd, @d_currentDate) < DATEPART(dd, @d_expirationDate)
+						)
+					THEN	1 * @n_adjustmentDirection
+					ELSE	0
+					END
+	SET	@n_fullQuarters = (DATEDIFF(mm, @d_currentDate, @d_expirationDate) - @n_monthAdjustment) / 3 
+	SET	@d_nextExpDate = DATEADD(qq, -@n_fullQuarters, @d_expirationDate)
+	SET	@n_daysInCurrQuarter = DATEDIFF(dd, DATEADD(qq, -@n_adjustmentDirection, @d_nextExpDate), @d_nextExpDate)
+	SET	@n_activeDaysInCurrQuarter = DATEDIFF(dd, @d_currentDate, @d_nextExpDate) -- * -1
+	SET	@n_fractionalQuarter = ROUND(CAST(@n_activeDaysInCurrQuarter as decimal(18,3)) / @n_daysInCurrQuarter, 3)
+	SET	@n_duration = @n_fullQuarters + (@n_fractionalQuarter * @n_adjustmentDirection)
+
+	RETURN (@n_duration)
+END	
+
+GO
+GRANT EXECUTE ON [dbo].[fn_calculatedurationquarter] TO [public] AS [dbo]
+GO

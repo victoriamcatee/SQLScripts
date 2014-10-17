@@ -1,0 +1,34 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE FUNCTION dbo.fn_calculatedurationmonth
+(	
+	@d_currentDate datetime,
+	@d_expirationDate datetime
+)
+RETURNS decimal(18,3)
+AS
+BEGIN
+	DECLARE	@n_daysInCurrMonth int,
+		@n_monthAdjustment int,
+		@n_duration decimal(18,3)
+	
+	SET	@d_currentDate = CAST(CONVERT(varchar(10), @d_currentDate, 101) as datetime)
+	SET	@d_expirationDate = CAST(CONVERT(varchar(10), @d_expirationDate, 101) as datetime)
+	
+	SET	@n_daysInCurrMonth = DATEPART(day, DATEADD(dd, -1, CAST(DATEPART(mm,DATEADD(mm,1,@d_currentDate)) as varchar) + '/1/' + CAST(DATEPART(yyyy,DATEADD(mm,1,@d_currentDate)) as varchar)))
+	SET	@n_monthAdjustment = CASE WHEN DATEPART(day, @d_currentDate) <= DATEPART(day, @d_expirationDate) THEN 0 ELSE 1 END
+	
+	SELECT	@n_duration =	CAST(DATEDIFF(mm, @d_currentDate, @d_expirationDate) - @n_monthAdjustment +
+				CASE
+				WHEN @n_monthAdjustment = 0
+				THEN ROUND(CAST(DATEPART(day, @d_expirationDate) - DATEPART(day, @d_currentDate) as decimal(18,3)) / @n_daysInCurrMonth, 3)
+				ELSE ROUND(CAST((@n_daysInCurrMonth - DATEPART(day, @d_currentDate)) + DATEPART(day, @d_expirationDate) as decimal(18,3)) / @n_daysInCurrMonth, 3)
+				END as decimal(18,3))
+	RETURN (@n_duration)
+END	
+
+GO
+GRANT EXECUTE ON [dbo].[fn_calculatedurationmonth] TO [public] AS [dbo]
+GO

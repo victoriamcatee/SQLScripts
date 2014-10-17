@@ -1,0 +1,52 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE FUNCTION dbo.fn_calculatedurationannual
+(	
+	@d_currentDate datetime,
+	@d_expirationDate datetime
+)
+RETURNS decimal(18,3)
+AS
+BEGIN
+	DECLARE	@n_daysInCurrYear int,
+		@n_daysInNextYear int,
+		@n_daysToUse int,
+		@n_yearAdjustment int,
+		@n_yearAdjustment2 int,
+		@d_baseCurrDate datetime,
+		@d_baseExpDate datetime,
+		@d_nextExpDate datetime,
+		@n_duration decimal(18,3)
+	
+	SET	@d_currentDate = CAST(CONVERT(varchar(10), @d_currentDate, 101) as datetime)
+	SET	@d_expirationDate = CAST(CONVERT(varchar(10), @d_expirationDate, 101) as datetime)
+	
+	SET	@d_baseCurrDate = CAST(SUBSTRING(CONVERT(varchar, @d_currentDate, 101), 1, 6) + '2000' as datetime)
+	SET	@d_baseExpDate = CAST(SUBSTRING(CONVERT(varchar, @d_expirationDate, 101), 1, 6) + '2000' as datetime)
+	SET	@n_yearAdjustment = CASE WHEN @d_baseCurrDate <= @d_baseExpDate THEN 0 ELSE 1 END
+	SET	@n_yearAdjustment2 = CASE WHEN @d_baseCurrDate < @d_baseExpDate THEN 0 ELSE 1 END
+
+	SET	@d_nextExpDate = DATEADD(yy, -(DATEDIFF(yy, @d_currentDate, @d_expirationDate) - @n_yearAdjustment2), @d_expirationDate)
+
+	SET	@n_daysInCurrYear = DATENAME(dy,'12/31/' + CAST(DATEPART(yyyy, @d_currentDate) as varchar))
+	SET	@n_daysInNextYear = DATENAME(dy,'12/31/' + CAST(DATEPART(yyyy, DATEADD(yy,1,@d_currentDate)) as varchar))
+	SET	@n_daysToUse =	CASE
+				WHEN @n_daysInCurrYear = 366 AND @d_baseExpDate < '2/28/2000' THEN 366
+				WHEN @n_daysInNextYear = 366 AND @d_baseExpDate > '2/28/2000' THEN 366
+				ELSE 365
+				END
+	
+	SELECT	@n_duration =	CAST(DATEDIFF(yy, @d_currentDate, @d_expirationDate) - @n_yearAdjustment +
+				CASE
+				WHEN @n_yearAdjustment = 0
+				THEN ROUND(CAST(DATEDIFF(dd, @d_baseCurrDate, @d_baseExpDate) as decimal(18,3)) / @n_daysInCurrYear, 3)
+				ELSE ROUND(CAST((@n_daysInCurrYear - DATENAME(dy, @d_currentDate)) + DATEPART(dy, @d_nextExpDate) as decimal(18,3)) / @n_daysToUse, 3)
+				END as decimal(18,3))
+	RETURN (@n_duration)
+END	
+
+GO
+GRANT EXECUTE ON [dbo].[fn_calculatedurationannual] TO [public] AS [dbo]
+GO

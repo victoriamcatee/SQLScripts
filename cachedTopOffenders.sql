@@ -15,7 +15,7 @@ select top 20	total_worker_time/1000,
 FROM	sys.dm_exec_query_stats qs
 	CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) as st
 	CROSS APPLY sys.dm_exec_query_plan(qs.plan_handle) as qp
-WHERE	last_execution_time > '04/24/14 10:00'
+WHERE	last_execution_time > '09/23/14 10:00'
 ORDER BY total_worker_time desc, [total execution count] desc;
 
 --TOP READ OFFENDERS

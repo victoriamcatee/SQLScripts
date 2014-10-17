@@ -1,0 +1,24 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE FUNCTION dbo.SplitStringsXML_fn(@List NVARCHAR(MAX), @Delimiter NVARCHAR(3))
+RETURNS TABLE
+AS
+/****************************************************************************
+02/23/2012 . kbenzel . Create procedure new . Called by master.dbo.Search_sp
+SELECT * FROM master.dbo.SplitStringsXML_fn('a,b,c,d',',')
+****************************************************************************/
+RETURN (
+	SELECT Item = CONVERT(NVARCHAR(128), Item)
+    FROM (
+		SELECT Item = x.i.value('(./text())[1]', 'NVARCHAR(128)')
+        FROM (
+			SELECT [XML] = CONVERT(XML, '<i>' + REPLACE(@List, @Delimiter, '</i><i>') + '</i>').query('.')) AS a
+			CROSS APPLY
+			[XML].nodes('i') AS x(i)) AS y
+       WHERE Item IS NOT NULL
+);
+
+GO
