@@ -1,0 +1,168 @@
+
+CREATE DATABASE ct_demo
+GO
+
+USE ct_demo
+GO
+
+CREATE TABLE dbo.myTable
+(	myTableID	int NOT NULL IDENTITY CONSTRAINT PK_myTable PRIMARY KEY CLUSTERED,
+	myVal		varchar(50)
+)
+
+ALTER DATABASE ct_demo SET CHANGE_TRACKING=ON --(AUTO_CLEANUP=ON, CHANGE_RETENTION=5 days)
+GO
+
+ALTER TABLE dbo.myTable ENABLE CHANGE_TRACKING WITH(TRACK_COLUMNS_UPDATED = ON)
+GO
+
+SELECT CHANGE_TRACKING_CURRENT_VERSION()
+
+INSERT	dbo.myTable (myVal)
+VALUES ('value1')
+go
+
+SELECT CHANGE_TRACKING_CURRENT_VERSION()
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable1, 1) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+INSERT	dbo.myTable (myVal)
+VALUES ('value2')
+go
+
+SELECT CHANGE_TRACKING_CURRENT_VERSION()
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 1) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 2) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+SELECT	*
+FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct
+WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+
+--FIND THE CHANGED ROWS:
+	SELECT	a.*
+	FROM	ct_demo.dbo.myTable a
+		JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct	ON	a.myTableID = ct.myTableID
+									AND	SYS_CHANGE_OPERATION = 'I'
+
+--LETS MAKE SOME DYNAMIC SQL WITH IT
+
+	SET NOCOUNT ON
+
+	DECLARE @someSQL varchar(MAX) = ''
+
+	IF EXISTS (	SELECT	COUNT(1)
+			FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct
+			WHERE	SYS_CHANGE_OPERATION = 'I' --INSERTS
+		)
+	BEGIN
+		SELECT	@someSQL = 'SET IDENTITY_INSERT ct_demo.dbo.myTable ON' + CHAR(13) + CHAR(10) + 'GO' + CHAR(13) + CHAR(10)
+
+		SELECT	@someSQL +=	'INSERT ct_demo.dbo.myTable (myTableID, myVal)' + CHAR(13) + CHAR(10) +
+					'  VALUES (' +
+					CAST(a.myTableID AS varchar) + ', ' +
+					'''' + a.myVal + ''')' + CHAR(13) + CHAR(10) + 'GO' + CHAR(13) + CHAR(10)
+		FROM	ct_demo.dbo.myTable a
+			JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct	ON	a.myTableID = ct.myTableID
+										AND	SYS_CHANGE_OPERATION = 'I'
+		ORDER BY SYS_CHANGE_VERSION
+
+		SELECT	@someSQL += 'SET IDENTITY_INSERT ct_demo.dbo.myTable OFF' + CHAR(13) + CHAR(10) + 'GO' + CHAR(13) + CHAR(10)
+	END
+
+	SELECT	@someSQL
+
+--LETS LOOK AT CHANGES
+	UPDATE	myTable
+	SET	myVal = 'myNewVal1'
+	WHERE	myTableID = 1
+
+	SELECT CHANGE_TRACKING_CURRENT_VERSION()
+
+	SELECT	*
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct
+	WHERE	SYS_CHANGE_OPERATION = 'U' --UPDATES
+
+	SELECT	*
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct
+	WHERE	SYS_CHANGE_OPERATION = 'U' --UPDATES
+
+	SELECT	*
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 1) ct
+	WHERE	SYS_CHANGE_OPERATION = 'U' --UPDATES
+
+	SELECT	*
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 2) ct
+	WHERE	SYS_CHANGE_OPERATION = 'U' --UPDATES
+
+	SELECT	a.*
+	FROM	ct_demo.dbo.myTable a
+		JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, 1) ct	ON	a.myTableID	= ct.myTableID
+									AND	SYS_CHANGE_OPERATION	= 'U'
+
+	SELECT	a.*
+	FROM	ct_demo.dbo.myTable a
+		JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, 2) ct	ON	a.myTableID	= ct.myTableID
+									AND	SYS_CHANGE_OPERATION	= 'U'
+
+	SELECT	a.*, *
+	FROM	ct_demo.dbo.myTable a
+		JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct	ON	a.myTableID	= ct.myTableID
+									AND	SYS_CHANGE_OPERATION	= 'U'
+
+
+	--Find out if my non pk column was updated
+	SELECT	CHANGE_TRACKING_IS_COLUMN_IN_MASK(COLUMNPROPERTY(OBJECT_ID('ct_demo.dbo.myTable'), 'myVal', 'ColumnId'), SYS_CHANGE_COLUMNS)
+		FROM	ct_demo.dbo.myTable a
+		JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct	ON	a.myTableID = ct.myTableID
+
+	SELECT	'UPDATE ct_demo.dbo.myTable SET ' +
+		CASE CHANGE_TRACKING_IS_COLUMN_IN_MASK(COLUMNPROPERTY(OBJECT_ID('ct_demo.dbo.myTable'), 'myVal', 'ColumnId'), SYS_CHANGE_COLUMNS)
+				WHEN 1 THEN 'myVal=''' + myVal + '''' ELSE '' END + ' WHERE myTableID = ' + CAST(a.myTableID AS varchar) + CHAR(13) + CHAR(10) + 'GO'
+	FROM	ct_demo.dbo.myTable a
+		JOIN CHANGETABLE(CHANGES ct_demo.dbo.myTable, 2) ct	ON	a.myTableID = ct.myTableID
+									AND	SYS_CHANGE_OPERATION = 'U'
+
+--DELETES EXAMPLES
+	
+	DELETE	dbo.myTable
+	WHERE	myTableID = 2
+
+	SELECT CHANGE_TRACKING_CURRENT_VERSION()
+
+	SELECT	*
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, 0) ct
+	WHERE	SYS_CHANGE_OPERATION = 'D' --DELETES
+
+	SELECT	*
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct
+	WHERE	SYS_CHANGE_OPERATION = 'D' --DELETES
+
+	SELECT	'DELETE ct_demo.dbo.myTable WHERE myTableID = ' + CAST(myTableID AS varchar) + CHAR(13) + CHAR(10) + 'GO'
+	FROM	CHANGETABLE(CHANGES ct_demo.dbo.myTable, NULL) ct
+	WHERE	SYS_CHANGE_OPERATION	= 'D'
+	ORDER BY SYS_CHANGE_VERSION
+
+USE master
+GO
+
+DROP DATABASE ct_demo
