@@ -52,10 +52,5 @@ BEGIN
 
 	return
 END	
+GO
 
-
-GO
-GRANT SELECT ON [dbo].[fn_convertStrListToTable] TO [gd_execprocs] AS [dbo]
-GO
-GRANT SELECT ON [dbo].[fn_convertStrListToTable] TO [public] AS [dbo]
-GO
